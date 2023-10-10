@@ -629,8 +629,8 @@ bool MCP2517FD::_initFD(uint32_t nominalSpeed, uint32_t dataSpeed, uint8_t freq,
 
     if (!initializedResources) initializeResources();
 
-    if (nominalSpeed < 125000) return 0; //won't work, die - Keep in mind that the FD spec doesn't want less than 500k here though
-    if (dataSpeed < 1000000ul) return 0; //also won't work.
+    if (nominalSpeed < 125000ul) return 0; //won't work, die - Keep in mind that the FD spec doesn't want less than 500k here though
+    if (dataSpeed < 125000ul) return 0; //also won't work. Allow 128k for now on both data and nominal
 
     // Reset MCP2517FD which puts us in config mode automatically
     Reset();
@@ -670,12 +670,12 @@ bool MCP2517FD::_initFD(uint32_t nominalSpeed, uint32_t dataSpeed, uint8_t freq,
     neededTQ = (freq * 1000000ul) / dataSpeed;
     tseg1 = ((neededTQ * 8) / 10) - 1; //set sample point at 80%
     tseg2 = neededTQ - tseg1 - 1;
-    if (tseg1 > 32 || tseg1 < 1)
+    if (tseg1 > 256 || tseg1 < 1)
     {
         if (debuggingMode) Serial.println("Data TSeg1 outside of limits. Invalid baud rates!");
         return false;
     }
-    if (tseg2 > 16 || tseg2 < 1)
+    if (tseg2 > 128 || tseg2 < 1)
     {
         if (debuggingMode) Serial.println("Data TSeg2 outside of limits. Invalid baud rates!");
         return false;
@@ -1177,7 +1177,11 @@ void MCP2517FD::LoadFrameBuffer(uint16_t address, CAN_FRAME_FD &message)
     else buffPtr[0] = message.id & 0x7FF;
 
     buffPtr[1] = (message.extended) ? (1 << 4) : 0;
-    buffPtr[1] |= (message.fdMode) ? (3 << 6) : 0; //set both the BRS and FDF bits at once
+    buffPtr[1] |= (message.fdMode) ? (1 << 7) : 0;
+     // BRS bit rate switch for higher data rate can be optionally set
+    buffPtr[1] |= (message.brs) ? (1 << 6) : 0;
+     //buffPtr[1] |= (message.fdMode) ? (3 << 6) : 0; //set both the BRS and FDF bits at once
+
     if (message.fdMode)
         buffPtr[0] |= (message.rrs) ? (1 << 29) : 0;
     else
